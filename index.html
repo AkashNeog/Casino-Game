@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🎲 Multi-Player Casino Dice Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style>
+    body {
+      background-color: #0d6efd; 
+      color: #ffffff;
+      font-family: 'Poppins', sans-serif;
+    }
+    h1, h4 {
+      color: #ffffff;
+    }
+    #setup-area, #play-area {
+      max-width: 500px;
+      margin: auto;
+      background-color: #ffffff;
+      color: #212529;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+    #rules {
+      background-color: #ffffff;
+      color: #212529;
+      padding: 20px;
+      border-radius: 16px;
+      margin-top: 30px;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .btn-primary {
+      background-color: #3b945e;
+      border: none;
+    }
+    .btn-primary:hover {
+      background-color: #368356;
+    }
+    .btn-success {
+      background-color: #3b945e;
+      border: none;
+    }
+    .btn-success:hover {
+      background-color: #368356;
+    }
+    .btn-secondary {
+      background-color: #6c757d;
+      border: none;
+    }
+    input[type="number"], input[type="text"] {
+      background-color: #f1f1f1;
+      border: 1px solid #ced4da;
+    }
+    .title-bar {
+      text-align: center;
+      padding: 20px;
+    }
+    .title-bar h1 {
+      color: #ffffff;
+      font-size: 2.5rem;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+
+<div class="title-bar">
+  <h1>🎲 Casino Dice Game 🎲</h1>
+</div>
+
+<div class="container">
+  <div id="setup-area">
+    <div class="mb-3">
+      <label class="form-label">Number of Players:</label>
+      <input type="number" class="form-control" id="numPlayers" min="1" max="5">
+    </div>
+    <button class="btn btn-primary w-100" id="startSetup">Setup Players</button>
+    <form id="playersForm" class="mt-4 d-none"></form>
+  </div>
+
+  <div id="play-area" class="mt-4 d-none">
+    <h4 id="turnTitle"></h4>
+    <p id="balanceInfo"></p>
+    <div class="mb-3">
+      <label class="form-label">Betting Amount:</label>
+      <input type="number" class="form-control" id="betAmount">
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Guess a number (1-10):</label>
+      <input type="number" class="form-control" id="guessNumber">
+    </div>
+    <button class="btn btn-success w-100" id="rollDice">Roll Dice</button>
+    <p id="resultMsg" class="mt-3 fw-bold"></p>
+    <button class="btn btn-secondary w-100 mt-2 d-none" id="nextTurn">Next Turn</button>
+  </div>
+
+  <div id="rules" class="mt-5">
+    <h4>📌 Game Rules:</h4>
+    <ul>
+      <li>Pick a number between 1 to 10.</li>
+      <li>If your guess matches the dice, you win 10× your bet!</li>
+      <li>If not, you lose your bet amount.</li>
+      <li>Players take turns one by one.</li>
+      <li>Game ends when everyone’s balance hits zero.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  let numPlayers = 0;
+  let players = [];
+  let currentPlayer = 0;
+
+  $('#startSetup').click(function() {
+    numPlayers = parseInt($('#numPlayers').val());
+    if (isNaN(numPlayers) || numPlayers <= 0 || numPlayers > 5) {
+      alert('Enter a valid number of players (1-5).');
+      return;
+    }
+
+    $('#playersForm').empty().removeClass('d-none');
+    for (let i = 0; i < numPlayers; i++) {
+      $('#playersForm').append(`
+        <div class="mb-3">
+          <label>Player ${i+1} Name:</label>
+          <input type="text" class="form-control player-name" data-index="${i}">
+        </div>
+        <div class="mb-3">
+          <label>Deposit Amount:</label>
+          <input type="number" class="form-control player-deposit" data-index="${i}">
+        </div>
+      `);
+    }
+    $('#playersForm').append('<button type="button" class="btn btn-primary w-100 mt-3" id="startGame">Start Game</button>');
+  });
+
+  $(document).on('click', '#startGame', function() {
+    players = [];
+    let valid = true;
+
+    $('.player-name').each(function() {
+      let name = $(this).val();
+      if (name === '') valid = false;
+      players.push({ name, balance: 0 });
+    });
+
+    $('.player-deposit').each(function(i) {
+      let deposit = parseFloat($(this).val());
+      if (isNaN(deposit) || deposit <= 0) valid = false;
+      players[i].balance = deposit;
+    });
+
+    if (!valid) {
+      alert('Please fill all names and deposit amounts properly.');
+      return;
+    }
+
+    $('#setup-area').hide();
+    $('#play-area').removeClass('d-none');
+    currentPlayer = 0;
+    updateTurn();
+  });
+
+  $('#rollDice').click(function() {
+    let betAmount = parseFloat($('#betAmount').val());
+    let guessNumber = parseInt($('#guessNumber').val());
+    let player = players[currentPlayer];
+
+    if (isNaN(betAmount) || betAmount <= 0 || betAmount > player.balance) {
+      alert('Enter a valid bet within your balance.');
+      return;
+    }
+
+    if (isNaN(guessNumber) || guessNumber < 1 || guessNumber > 10) {
+      alert('Enter a guess between 1-10.');
+      return;
+    }
+
+    let dice = Math.floor(Math.random() * 10) + 1;
+    let message = `🎲 The winning number was <strong>${dice}</strong>. `;
+
+    if (dice === guessNumber) {
+      let winAmount = betAmount * 10;
+      player.balance += winAmount;
+      message += `<br>🎉 Congrats ${player.name}, you won $${winAmount}!`;
+    } else {
+      player.balance -= betAmount;
+      message += `<br>😢 Sorry ${player.name}, you lost $${betAmount}.`;
+    }
+
+    $('#resultMsg').html(message);
+    updateBalance();
+    $('#rollDice').prop('disabled', true);
+    $('#nextTurn').removeClass('d-none');
+  });
+
+  $('#nextTurn').click(function() {
+    currentPlayer++;
+    if (currentPlayer >= numPlayers) currentPlayer = 0;
+
+    if (players.every(p => p.balance <= 0)) {
+      let finalMsg = '<h4 class="mt-4">🏁 Game Over!</h4>';
+      players.forEach(p => {
+        finalMsg += `<p>${p.name} final balance: $${p.balance}</p>`;
+      });
+      $('#play-area').html(finalMsg);
+    } else {
+      updateTurn();
+      $('#resultMsg').html('');
+      $('#betAmount').val('');
+      $('#guessNumber').val('');
+      $(this).addClass('d-none');
+      $('#rollDice').prop('disabled', false);
+    }
+  });
+
+  function updateTurn() {
+    while (players[currentPlayer].balance <= 0) {
+      currentPlayer++;
+      if (currentPlayer >= numPlayers) currentPlayer = 0;
+    }
+
+    $('#turnTitle').text(`🎲 ${players[currentPlayer].name}'s Turn`);
+    updateBalance();
+  }
+
+  function updateBalance() {
+    $('#balanceInfo').text(`${players[currentPlayer].name}, your balance: $${players[currentPlayer].balance}`);
+  }
+</script>
+
+</body>
+</html>
